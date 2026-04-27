@@ -13,7 +13,7 @@ env:
   BRONZE_LH: bronze_fabric_accelerator
   SILVER_LH: silver_fabric_accelerator
   GOLD_DW: gold_fabric_accelerator
-  WIDE_WORLD_IMPORTERS_CONNECTION_ID: a0a57e51-5032-4e46-b0f0-493c9d2f51c9
+  WIDE_WORLD_IMPORTERS_CONNECTION_ID: 6f404829-9068-44ce-9db1-b733ee244fbf
 
 jobs:
   deploy-fabric-accelerator:
@@ -164,6 +164,25 @@ jobs:
                 fab api -X post "connections/$connectionID/roleAssignments" -i "$rolejson" --show_headers
 
               fi
+        
+        # Create Mirror ASQL database connection if it does not exist
+        - name: Create Mirror ASQL DB Connection if it does not exist
+          run: |
+              MirrorASQLConnExists=$(fab exists .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection | tr -d '[:space:]')
+              echo "MirrorASQLConnExists: $MirrorASQLConnExists"
+              if [ "$MirrorASQLConnExists" != "*true" ]; then
+                server="${{ secrets.WWI_SERVER }}"
+                database="${{ secrets.WWI_DATABASE }}"
+                echo "Creating connection for server: $server and database: $database"
+                fab create .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection -P connectionDetails.creationMethod=SQL,connectionDetails.type=SQL,connectionDetails.parameters.server=$server,connectionDetails.parameters.database=$database,credentialDetails.type=ServicePrincipal,credentialDetails.servicePrincipalClientId=${{ secrets.ACTION_SPN_CLIENTID }},credentialDetails.servicePrincipalSecret=${{ secrets.ACTION_SPN_SECRET }},credentialDetails.tenantid=${{ secrets.TENANT_ID }} 
+                connectionID=$(fab get .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection -q id| tr -d '\r')
+                
+                rolejson=$(jq -n --arg id "$WORKSPACE_ADMIN_ID" --arg type "${WORKSPACE_ADMIN_TYPE^}" '{"principal": {"id": $id, "type": $type}, "role": "Owner"}')         
+                echo "Assigning role to connection: $rolejson"
+                fab api -X post "connections/$connectionID/roleAssignments" -i "$rolejson" --show_headers
+
+              fi
+
           # Create Medallion Layers if they do not exist
         - name: Create Medallion Layers if they do not exist
           run: |
