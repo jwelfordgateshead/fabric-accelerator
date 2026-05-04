@@ -353,7 +353,7 @@ jobs:
                 echo "WWI-mirror Database deployed successfully."
               else
                 echo "Deployment of WWI-mirror Database failed with status code: $status_code">&2
-              exit 1
+                exit 1
               fi
            fi
            
