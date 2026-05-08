@@ -172,7 +172,8 @@ jobs:
        # Deploy WWI-mirror Database
         - name: Deploy WWI-mirror Database
           run: |
-            set -euo pipefail
+            #set -euo pipefail
+            set +x
             MirrorDBExists=$(fab exists $WORKSPACE_NAME.Workspace/WWI-mirror.MirroredDatabase | tr -d '[:space:]')
           
             if [ "$MirrorDBExists" != "*true" ]; then
@@ -206,7 +207,7 @@ jobs:
               status_code=$(echo "$response" | jq -r '.status_code')
               status=$(echo "$response" | jq -r '.text.status')
               echo "Mirroring status: $status"
-              [ "$status_code" = "200" ] && [ "$status" != "Initializing" ] && break # exit loop when status is no longer Initializing
+              [ "$status_code" = "200" ] && [ "$status" != "Initializing" ] && break
               sleep 30
             done
             echo "Mirroring status is now: $status"
@@ -224,7 +225,7 @@ jobs:
               exit 1
             fi
         
-
+            set -x
         # Create WWI-mirror database connection if it does not exist
         - name: Create WWI-mirror Connection if it does not exist
           run: |
