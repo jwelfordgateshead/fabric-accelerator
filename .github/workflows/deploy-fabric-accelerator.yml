@@ -26,7 +26,9 @@ jobs:
      NEW_SILVER_LH_ID: null
      NEW_GOLD_DW_ID: null
      NEW_INGEST_ASQL_PIPELINE_LOGICAL_ID: null
+     NEW_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID: null
      NEW_MASTER_INGEST_ASQL_PIPELINE_ID: null
+     NEW_MASTER_INGEST_MIRRORDB_PIPELINE_ID: null
      NEW_LEVEL1_TRANSFORM_PIPELINE_LOGICAL_ID: null
      NEW_MASTER_LEVEL1_TRANSFORM_PIPELINE_LOGICAL_ID: null
      NEW_LEVEL2_TRANSFORM_PIPELINE_LOGICAL_ID: null
@@ -49,7 +51,9 @@ jobs:
      OLD_WIDE_WORLD_IMPORTERS_CONNECTION_ID: a0a57e51-5032-4e46-b0f0-493c9d2f51c9
      OLD_TENANT_ID: 4e921ed2-9b1c-457c-a917-16ef468eb90a
      OLD_INGEST_ASQL_PIPELINE_LOGICAL_ID: 7ea78b86-8d5e-4e2e-adc8-1138c278f6ab
+     OLD_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID: 8ce93ec6-1295-b4f7-48b3-f8d92900eb46
      OLD_MASTER_INGEST_ASQL_PIPELINE_ID: 02b37a75-fb44-4efb-9d88-b6171a4d0d7d
+     OLD_MASTER_INGEST_MIRRORDB_PIPELINE_ID: f6fbd55e-12b9-4ac8-9e6e-a37049dcca2d
      OLD_LEVEL1_TRANSFORM_PIPELINE_LOGICAL_ID: b25d5ad7-288a-4426-83f3-170aff284708
      OLD_MASTER_LEVEL1_TRANSFORM_PIPELINE_LOGICAL_ID: 592635be-9979-40a3-8a91-0305b696cea2
      OLD_LEVEL2_TRANSFORM_PIPELINE_LOGICAL_ID: 5a473c1e-fd95-4b0a-a4a0-33537c65a0d7
@@ -182,8 +186,6 @@ jobs:
        # Deploy WWI-mirror Database
         - name: Deploy WWI-mirror Database
           run: |
-            #set -euo pipefail
-            set -x
             MirrorDBExists=$(fab exists $WORKSPACE_NAME.Workspace/WWI-mirror.MirroredDatabase | tr -d '[:space:]')
           
             if [ "$MirrorDBExists" != "*true" ]; then
@@ -234,8 +236,7 @@ jobs:
               echo "Starting mirroring for WWI-mirror Database failed with status code: $status_code">&2
               exit 1
             fi
-        
-            set +x
+
         # Create WWI-mirror database connection if it does not exist
         - name: Create WWI-mirror Connection if it does not exist
           run: |
@@ -290,9 +291,6 @@ jobs:
         - name: Replace OLD IDs with NEW IDs in workspace files
           run: |
              
-              # NEW_CONTROLDB_CONNECTION_ID=$(fab get .connections/"${WORKSPACE_NAME}-${FABRIC_SQL_DB_NAME}".Connection -q id | tr -d '\r')
-              # echo "NEW_CONTROLDB_CONNECTION_ID=$NEW_CONTROLDB_CONNECTION_ID" >> $GITHUB_ENV
-        
               echo "Replacing OLD ID with NEW ID in workspace files"
 
               echo "Files to be updated from $OLD_FABRIC_CAPACITY_ID to $NEW_FABRIC_CAPACITY_ID"
@@ -790,6 +788,119 @@ jobs:
               echo "Files to be updated from $OLD_MASTER_INGEST_ASQL_PIPELINE_ID to $NEW_MASTER_INGEST_ASQL_PIPELINE_ID"
               grep --null -rl "$OLD_MASTER_INGEST_ASQL_PIPELINE_ID" "${GITHUB_WORKSPACE}/workspace" | tr '\0' '\n'
               grep --null -rl "$OLD_MASTER_INGEST_ASQL_PIPELINE_ID" ${GITHUB_WORKSPACE}/workspace | xargs -0 sed -i "s/$OLD_MASTER_INGEST_ASQL_PIPELINE_ID/$NEW_MASTER_INGEST_ASQL_PIPELINE_ID/g"
+            else
+                echo "Deployment step failed with status code: $status_code">&2
+                exit 1
+            fi
+
+     # Deploy Pipeline Ingest ASQL Table
+        - name: Deploy Pipeline Ingest MirrorDB Table
+          run: |
+            PipelineExists=$(fab exists "$WORKSPACE_NAME.Workspace/Ingest MirrorDB Table.DataPipeline"| tr -d '[:space:]')
+            pipeline_content=$(jq '.' "${GITHUB_WORKSPACE}/workspace/pipeline/reusable/mirrordb/Ingest MirrorDB Table.DataPipeline/pipeline-content.json"| base64)
+            platform=$(jq '.' "${GITHUB_WORKSPACE}/workspace/pipeline/reusable/mirrordb/Ingest MirrorDB Table.DataPipeline/.platform"| base64)
+
+            if [ "$PipelineExists" != "*true" ]; then
+                folderId=$(fab get $WORKSPACE_NAME.Workspace/pipeline.Folder/reusable.Folder/mirrordb.Folder -q id | tr -d '\r')
+                jsonPayload=$(jq -n \
+                    --arg displayName "Ingest MirrorDB Table" \
+                    --arg pipeline_content "$pipeline_content" \
+                    --arg platform "$platform" \
+                    --arg folderId "$folderId" \
+                    '{"displayName": $displayName,"definition": {"parts":[{"path": "pipeline-content.json","payload": $pipeline_content,"payloadType": "InlineBase64"},{"path": ".platform","payload": $platform,"payloadType": "InlineBase64"}]},"folderId": $folderId}')
+                response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/dataPipelines" -i "$jsonPayload" --show_headers)
+            else
+                pipelineId=$(fab get $WORKSPACE_NAME.Workspace/Ingest MirrorDB Table.DataPipeline -q id | tr -d '\r')
+                jsonPayload=$(jq -n \
+                    --arg pipeline_content "$pipeline_content" \
+                    --arg platform "$platform" \
+                    '{"definition": {"parts":[{"path": "pipeline-content.json","payload": $pipeline_content,"payloadType": "InlineBase64"},{"path": ".platform","payload": $platform,"payloadType": "InlineBase64"}]}}')  
+                response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/dataPipelines/$pipelineId/updateDefinition?updateMetadata=True" -i "$jsonPayload" --show_headers)
+            fi
+
+            echo "$response"
+            status_code=$(echo "$response" | jq -r '.status_code')
+            if [ "$status_code" = "201" ] || [ "$status_code" = "200" ] || [ "$status_code" = "202" ]; then
+
+              if [ "$status_code" = "202" ]; then
+                  operation_id=$(echo "$response" | jq -r '.headers["x-ms-operation-id"]')
+                  retry_after=$(echo "$response" | jq -r '.headers["Retry-After"]')
+                  sleep "$retry_after"
+                  while :; do
+                      response=$(fab api -X get "/operations/$operation_id" --show_headers)
+                      echo "$response"
+                      status=$(echo "$response" | jq -r '.text.status')
+                      [[ "$status" == "Succeeded" || "$status" == "Failed" ]] && break
+                      sleep "$retry_after"
+                  done
+                  if [ "$status" = "Failed" ]; then
+                      echo "Async operation failed during deployment." >&2
+                      exit 1
+                  fi
+              fi
+
+             NEW_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID=$(fab get "$WORKSPACE_NAME.Workspace/Ingest MirrorDB Table.DataPipeline" -q id | tr -d '\r')
+              echo "NEW_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID=$NEW_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID" >> $GITHUB_ENV
+              echo "Files to be updated from $OLD_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID to $NEW_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID"
+              grep --null -rl "$OLD_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID" "${GITHUB_WORKSPACE}/workspace" | tr '\0' '\n'
+              grep --null -rl "$OLD_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID" ${GITHUB_WORKSPACE}/workspace | xargs -0 sed -i "s/$OLD_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID/$NEW_INGEST_MIRRORDB_PIPELINE_LOGICAL_ID/g"
+            else
+                echo "Deployment step failed with status code: $status_code">&2
+                exit 1
+            fi
+
+      # Deploy Pipeline Master ELT MirrorDB
+        - name: Deploy Pipeline Master ELT MirrorDB
+          run: |
+            PipelineExists=$(fab exists "$WORKSPACE_NAME.Workspace/Master ELT MirrorDB.DataPipeline"| tr -d '[:space:]')
+            pipeline_content=$(jq '.' "${GITHUB_WORKSPACE}/workspace/pipeline/reusable/mirrordb/Master ELT MirrorDB.DataPipeline/pipeline-content.json"| base64)
+            platform=$(jq '.' "${GITHUB_WORKSPACE}/workspace/pipeline/reusable/mirrordb/Master ELT MirrorDB.DataPipeline/.platform"| base64)
+
+            if [ "$PipelineExists" != "*true" ]; then
+                folderId=$(fab get $WORKSPACE_NAME.Workspace/pipeline.Folder/reusable.Folder/mirrordb.Folder -q id | tr -d '\r')
+                jsonPayload=$(jq -n \
+                    --arg displayName "Master ELT MirrorDB" \
+                    --arg pipeline_content "$pipeline_content" \
+                    --arg platform "$platform" \
+                    --arg folderId "$folderId" \
+                    '{"displayName": $displayName,"definition": {"parts":[{"path": "pipeline-content.json","payload": $pipeline_content,"payloadType": "InlineBase64"},{"path": ".platform","payload": $platform,"payloadType": "InlineBase64"}]},"folderId": $folderId}')
+                response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/dataPipelines" -i "$jsonPayload" --show_headers)
+            else
+                pipelineId=$(fab get $WORKSPACE_NAME.Workspace/Master ELT MirrorDB.DataPipeline -q id | tr -d '\r')
+                jsonPayload=$(jq -n \
+                    --arg pipeline_content "$pipeline_content" \
+                    --arg platform "$platform" \
+                    '{"definition": {"parts":[{"path": "pipeline-content.json","payload": $pipeline_content,"payloadType": "InlineBase64"},{"path": ".platform","payload": $platform,"payloadType": "InlineBase64"}]}}')
+                response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/dataPipelines/$pipelineId/updateDefinition?updateMetadata=True" -i "$jsonPayload" --show_headers)
+            fi
+            
+            echo "$response"
+            #Replace OLD_MASTER_INGEST_MIRRORDB_PIPELINE_ID, not LOGICAL_ID with NEW_MASTER_INGEST_MIRRORDB_PIPELINE_ID in workspace files
+            status_code=$(echo "$response" | jq -r '.status_code')
+            if [ "$status_code" = "201" ] || [ "$status_code" = "200" ] || [ "$status_code" = "202" ]; then
+
+              if [ "$status_code" = "202" ]; then
+                  operation_id=$(echo "$response" | jq -r '.headers["x-ms-operation-id"]')
+                  retry_after=$(echo "$response" | jq -r '.headers["Retry-After"]')
+                  sleep "$retry_after"
+                  while :; do
+                      response=$(fab api -X get "/operations/$operation_id" --show_headers)
+                      echo "$response" | jq '.'
+                      status=$(echo "$response" | jq -r '.text.status')
+                      [[ "$status" == "Succeeded" || "$status" == "Failed" ]] && break
+                      sleep "$retry_after"
+                  done
+                  if [ "$status" == "Failed" ]; then
+                      echo "Async operation failed during deployment." >&2
+                      exit 1
+                  fi
+              fi
+
+              NEW_MASTER_INGEST_MIRRORDB_PIPELINE_ID=$(fab get "$WORKSPACE_NAME.Workspace/Master ELT MirrorDB.DataPipeline" -q id | tr -d '\r')
+              echo "NEW_MASTER_INGEST_MIRRORDB_PIPELINE_ID=$NEW_MASTER_INGEST_MIRRORDB_PIPELINE_ID" >> $GITHUB_ENV
+              echo "Files to be updated from $OLD_MASTER_INGEST_MIRRORDB_PIPELINE_ID to $NEW_MASTER_INGEST_MIRRORDB_PIPELINE_ID"
+              grep --null -rl "$OLD_MASTER_INGEST_MIRRORDB_PIPELINE_ID" "${GITHUB_WORKSPACE}/workspace" | tr '\0' '\n'
+              grep --null -rl "$OLD_MASTER_INGEST_MIRRORDB_PIPELINE_ID" ${GITHUB_WORKSPACE}/workspace | xargs -0 sed -i "s/$OLD_MASTER_INGEST_MIRRORDB_PIPELINE_ID/$NEW_MASTER_INGEST_MIRRORDB_PIPELINE_ID/g"
             else
                 echo "Deployment step failed with status code: $status_code">&2
                 exit 1
