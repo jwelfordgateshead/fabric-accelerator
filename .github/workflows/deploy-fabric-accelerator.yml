@@ -1120,4 +1120,5 @@ jobs:
           run: |
             msbuild "${{ github.workspace }}\workspace\warehouse\dw_gold.Warehouse\dw_gold.sqlproj" `
               /p:Configuration=Release `
-              /p:Platform="Any CPU"
+              /p:Platform="Any CPU" `
+              /p:WarningLevel=0
