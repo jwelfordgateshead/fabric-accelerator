@@ -303,7 +303,7 @@ jobs:
         - name: Build Gold DW Dacpac
           run: |
             set -x
-            dotnet build "$WORKSPACE_NAME.Workspace/warehouse.Folder/$GOLD_DW.Warehouse"
+            dotnet build "${GITHUB_WORKSPACE}/workspace/warehouse/dw_gold.Warehouse"
             set +x
 
         #   Replace OLD IDs with NEW IDs in workspace files
