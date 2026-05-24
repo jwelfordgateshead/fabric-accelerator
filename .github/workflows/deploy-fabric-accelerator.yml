@@ -1151,7 +1151,7 @@ jobs:
             $ENTRA_CLIENT_ID = "${{ secrets.ACTION_SPN_CLIENTID }}"
             $ENTRA_CLIENT_SECRET = "${{ secrets.ACTION_SPN_SECRET }}"
 
-            $GOLD_DW_CONNECTION_STRING = "Server=$DW_SERVER;Initial Catalog=$DW_NAME;Authentication=Microsoft Entra Service Principal;User ID=$ENTRA_CLIENT_ID;Password=$ENTRA_CLIENT_SECRET;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+            $GOLD_DW_CONNECTION_STRING = "Server=$DW_SERVER;Initial Catalog=$DW_NAME;Authentication=Active Directory Service Principal;User ID=$ENTRA_CLIENT_ID;Password=$ENTRA_CLIENT_SECRET;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
 
             "DW_SERVER=$DW_SERVER" >> $env:GITHUB_ENV
             "DW_NAME=$DW_NAME" >> $env:GITHUB_ENV
