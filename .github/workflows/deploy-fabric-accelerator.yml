@@ -175,7 +175,7 @@ jobs:
               server=$(fab get $WORKSPACE_NAME.Workspace/$FABRIC_SQL_DB_NAME.SQLDatabase -q properties.serverFqdn -f | tr -d '\r')
               database=$(fab get $WORKSPACE_NAME.Workspace/$FABRIC_SQL_DB_NAME.SQLDatabase -q properties.databaseName -f | tr -d '\r')
               fab create .connections/"${WORKSPACE_NAME}-${FABRIC_SQL_DB_NAME}".Connection \
-                -P connectionDetails.creationMethod=SQL,connectionDetails.type=SQL,connectionDetails.parameters.server=$server,connectionDetails.parameters.database=$database
+                -P connectionDetails.creationMethod=SQL,connectionDetails.type=SQL,connectionDetails.parameters.server=$server,connectionDetails.parameters.database=$database,credentialDetails.type=ServicePrincipal,credentialDetails.username=${{ secrets.ACTION_SPN_CLIENTID }},credentialDetails.password=${{ secrets.ACTION_SPN_SECRET }}
 
                adminRoleJson=$(jq -n \
               --arg id "$WORKSPACE_ADMIN_ID" \
@@ -251,7 +251,7 @@ jobs:
               server=$(fab get $WORKSPACE_NAME.Workspace/WideWorldImporters-mirror.MirroredDatabase -q properties.sqlEndpointProperties.connectionString | tr -d '\r')
               database="WideWorldImporters-mirror"
               fab create .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection \
-                -P connectionDetails.creationMethod=SQL,connectionDetails.type=SQL,connectionDetails.parameters.server=$server,connectionDetails.parameters.database=$database
+                -P connectionDetails.creationMethod=SQL,connectionDetails.type=SQL,connectionDetails.parameters.server=$server,connectionDetails.parameters.database=$database,credentialDetails.type=ServicePrincipal,credentialDetails.username=${{ secrets.ACTION_SPN_CLIENTID }},credentialDetails.password=${{ secrets.ACTION_SPN_SECRET }}
 
               adminRoleJson=$(jq -n \
               --arg id "$WORKSPACE_ADMIN_ID" \
