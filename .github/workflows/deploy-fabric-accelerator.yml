@@ -6,7 +6,7 @@ env:
   FABRIC_CAPACITY_SKU: F16
   FABRIC_CAPACITY_ADMIN_ID: 4dfdd32b-ba30-42c3-8b0f-4c82aa79b9c8
   RESOURCE_GROUP: rg-ghc-fab-uks-01
-  WORKSPACE_NAME: Fabric_Accelerator
+  WORKSPACE_NAME: Fabric_AcceleratorV3
   WORKSPACE_ADMIN_ID: ad7f4b0c-b94b-4a7d-994e-549c32f64cb7
   WORKSPACE_ADMIN_TYPE: group # valid values: user, group
   FABRIC_SQL_DB_NAME: controldb-fabric-accelerator
@@ -191,86 +191,86 @@ jobs:
             echo "NEW_CONTROLDB_CONNECTION_ID=$connectionID" >> $GITHUB_ENV
 
        # Deploy WWI-mirror Database
-        - name: Deploy WWI-mirror Database
-          run: |
-            echo "Files to be updated from $OLD_WIDE_WORLD_IMPORTERS_CONNECTION_ID to $WIDE_WORLD_IMPORTERS_CONNECTION_ID"
-            grep --null -rl "$OLD_WIDE_WORLD_IMPORTERS_CONNECTION_ID" "${GITHUB_WORKSPACE}/workspace" | tr '\0' '\n'
-            grep --null -rl $OLD_WIDE_WORLD_IMPORTERS_CONNECTION_ID ${GITHUB_WORKSPACE}/workspace | xargs -0 sed -i "s/$OLD_WIDE_WORLD_IMPORTERS_CONNECTION_ID/$WIDE_WORLD_IMPORTERS_CONNECTION_ID/g"
+       # - name: Deploy WWI-mirror Database
+       #   run: |
+       #     echo "Files to be updated from $OLD_WIDE_WORLD_IMPORTERS_CONNECTION_ID to $WIDE_WORLD_IMPORTERS_CONNECTION_ID"
+       #     grep --null -rl "$OLD_WIDE_WORLD_IMPORTERS_CONNECTION_ID" "${GITHUB_WORKSPACE}/workspace" | tr '\0' '\n'
+       #     grep --null -rl $OLD_WIDE_WORLD_IMPORTERS_CONNECTION_ID ${GITHUB_WORKSPACE}/workspace | xargs -0 sed -i "s/$OLD_WIDE_WORLD_IMPORTERS_CONNECTION_ID/$WIDE_WORLD_IMPORTERS_CONNECTION_ID/g"
 
 
-            MirrorDBExists=$(fab exists $WORKSPACE_NAME.Workspace/WideWorldImporters-mirror.MirroredDatabase | tr -d '[:space:]')
+       #     MirrorDBExists=$(fab exists $WORKSPACE_NAME.Workspace/WideWorldImporters-mirror.MirroredDatabase | tr -d '[:space:]')
           
-            if [ "$MirrorDBExists" != "*true" ]; then
-                mirroring=$(jq '.' "${GITHUB_WORKSPACE}/workspace/mirror/WideWorldImporters-mirror.MirroredDatabase/mirroring.json" | base64)
-                folderId=$(fab get $WORKSPACE_NAME.Workspace/mirror.Folder -q id | tr -d '\r')
-                jsonPayload=$(jq -n \
-                          --arg displayName "WideWorldImporters-mirror" \
-                          --arg payload "$mirroring" \
-                          --arg folderId "$folderId" \
-                          '{"displayName": $displayName,"definition": {"parts":[{"path": "mirroring.json","payload": $payload,"payloadType": "InlineBase64"}]},"folderId": $folderId}')
-                response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/mirroredDatabases" -i "$jsonPayload" --show_headers)
-                echo "$response"
-                status_code=$(echo "$response" | jq -r '.status_code')
+       #     if [ "$MirrorDBExists" != "*true" ]; then
+       #         mirroring=$(jq '.' "${GITHUB_WORKSPACE}/workspace/mirror/WideWorldImporters-mirror.MirroredDatabase/mirroring.json" | base64)
+       #         folderId=$(fab get $WORKSPACE_NAME.Workspace/mirror.Folder -q id | tr -d '\r')
+       #         jsonPayload=$(jq -n \
+       #                   --arg displayName "WideWorldImporters-mirror" \
+       #                   --arg payload "$mirroring" \
+       #                   --arg folderId "$folderId" \
+       #                   '{"displayName": $displayName,"definition": {"parts":[{"path": "mirroring.json","payload": $payload,"payloadType": "InlineBase64"}]},"folderId": $folderId}')
+       #         response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/mirroredDatabases" -i "$jsonPayload" --show_headers)
+       #         echo "$response"
+       #         status_code=$(echo "$response" | jq -r '.status_code')
                 
-                if [ "$status_code" = "201" ]; then
-                  echo "WideWorldImporters-mirror Database deployed successfully."
-                else
-                  echo "Deployment of WideWorldImporters-mirror Database failed with status code: $status_code">&2
-                  exit 1
-                fi
-            fi
+       #         if [ "$status_code" = "201" ]; then
+       #           echo "WideWorldImporters-mirror Database deployed successfully."
+       #         else
+       #           echo "Deployment of WideWorldImporters-mirror Database failed with status code: $status_code">&2
+       #           exit 1
+       #         fi
+       #     fi
             
-            NEW_WWI_MIRROR_DB_ID=$(fab get $WORKSPACE_NAME.Workspace/WideWorldImporters-mirror.MirroredDatabase -q id | tr -d '\r')
+       #     NEW_WWI_MIRROR_DB_ID=$(fab get $WORKSPACE_NAME.Workspace/WideWorldImporters-mirror.MirroredDatabase -q id | tr -d '\r')
 
             # Poll mirroring status until no longer Initializing
-            echo "Waiting for WideWorldImporters-mirror to initialize..."
-            while :; do
-              response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/mirroredDatabases/$NEW_WWI_MIRROR_DB_ID/getMirroringStatus" --show_headers)
-              echo "$response"
-              status_code=$(echo "$response" | jq -r '.status_code')
-              status=$(echo "$response" | jq -r '.text.status')
-              echo "Mirroring status: $status"
-              [ "$status_code" = "200" ] && [ "$status" != "Initializing" ] && break
-              sleep 30
-            done
-            echo "Mirroring status is now: $status"
+       #     echo "Waiting for WideWorldImporters-mirror to initialize..."
+       #     while :; do
+       #       response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/mirroredDatabases/$NEW_WWI_MIRROR_DB_ID/getMirroringStatus" --show_headers)
+       #       echo "$response"
+       #       status_code=$(echo "$response" | jq -r '.status_code')
+       #       status=$(echo "$response" | jq -r '.text.status')
+       #       echo "Mirroring status: $status"
+       #       [ "$status_code" = "200" ] && [ "$status" != "Initializing" ] && break
+       #       sleep 30
+       #     done
+       #     echo "Mirroring status is now: $status"
 
             # Start Mirroring
-            echo "Starting WideWorldImporters-mirror..."
-            response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/mirroredDatabases/$NEW_WWI_MIRROR_DB_ID/startMirroring" --show_headers)
-            echo "$response"
-            status_code=$(echo "$response" | jq -r '.status_code')
+       #     echo "Starting WideWorldImporters-mirror..."
+       #     response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/mirroredDatabases/$NEW_WWI_MIRROR_DB_ID/startMirroring" --show_headers)
+       #     echo "$response"
+       #     status_code=$(echo "$response" | jq -r '.status_code')
 
-            if [ "$status_code" = "200" ]; then
-              echo "WideWorldImporters-mirror Database mirroring started successfully."
-            else
-              echo "Starting mirroring for WideWorldImporters-mirror Database failed with status code: $status_code">&2
-              exit 1
-            fi
+       #     if [ "$status_code" = "200" ]; then
+       #       echo "WideWorldImporters-mirror Database mirroring started successfully."
+       #     else
+       #       echo "Starting mirroring for WideWorldImporters-mirror Database failed with status code: $status_code">&2
+       #       exit 1
+       #     fi
 
         # Create WideWorldImporters-mirror database connection if it does not exist
-        - name: Create WideWorldImporters-mirror Connection if it does not exist
-          run: |
-            MirrorASQLConnExists=$(fab exists .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection | tr -d '[:space:]')
-            echo "MirrorASQLConnExists: $MirrorASQLConnExists"
+       # - name: Create WideWorldImporters-mirror Connection if it does not exist
+       #   run: |
+       #     MirrorASQLConnExists=$(fab exists .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection | tr -d '[:space:]')
+       #     echo "MirrorASQLConnExists: $MirrorASQLConnExists"
 
-            if [ "$MirrorASQLConnExists" != "*true" ]; then
-              server=$(fab get $WORKSPACE_NAME.Workspace/WideWorldImporters-mirror.MirroredDatabase -q properties.sqlEndpointProperties.connectionString | tr -d '\r')
-              database="WideWorldImporters-mirror"
-              fab create .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection \
-                -P connectionDetails.creationMethod=SQL,connectionDetails.type=SQL,connectionDetails.parameters.server=$server,connectionDetails.parameters.database=$database,credentialDetails.type=ServicePrincipal,credentialDetails.servicePrincipalClientId=${{ secrets.ACTION_SPN_CLIENTID }},credentialDetails.servicePrincipalSecret=${{ secrets.ACTION_SPN_SECRET }},credentialDetails.tenantid=${{ secrets.TENANT_ID }} 
+       #     if [ "$MirrorASQLConnExists" != "*true" ]; then
+       #       server=$(fab get $WORKSPACE_NAME.Workspace/WideWorldImporters-mirror.MirroredDatabase -q properties.sqlEndpointProperties.connectionString | tr -d '\r')
+       #       database="WideWorldImporters-mirror"
+       #       fab create .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection \
+       #         -P connectionDetails.creationMethod=SQL,connectionDetails.type=SQL,connectionDetails.parameters.server=$server,connectionDetails.parameters.database=$database,credentialDetails.type=ServicePrincipal,credentialDetails.servicePrincipalClientId=${{ secrets.ACTION_SPN_CLIENTID }},credentialDetails.servicePrincipalSecret=${{ secrets.ACTION_SPN_SECRET }},credentialDetails.tenantid=${{ secrets.TENANT_ID }} 
 
-              connectionID=$(fab get .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection -q id | tr -d '\r')
-              adminRoleJson=$(jq -n \
-              --arg id "$WORKSPACE_ADMIN_ID" \
-              --arg type "${WORKSPACE_ADMIN_TYPE^}" \
-              '{"principal": {"id": $id, "type": $type}, "role": "Owner"}')
+       #       connectionID=$(fab get .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection -q id | tr -d '\r')
+       #       adminRoleJson=$(jq -n \
+       #       --arg id "$WORKSPACE_ADMIN_ID" \
+       #       --arg type "${WORKSPACE_ADMIN_TYPE^}" \
+       #       '{"principal": {"id": $id, "type": $type}, "role": "Owner"}')
 
-              fab api -X post "connections/$connectionID/roleAssignments" -i "$adminRoleJson" --show_headers || true
-            fi
+       #       fab api -X post "connections/$connectionID/roleAssignments" -i "$adminRoleJson" --show_headers || true
+       #     fi
 
-            connectionID=$(fab get .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection -q id | tr -d '\r')
-            echo "NEW_WWI_MIRROR_DB_CONNECTION_ID=$connectionID" >> $GITHUB_ENV
+       #     connectionID=$(fab get .connections/"${WORKSPACE_NAME}-WWI-mirror".Connection -q id | tr -d '\r')
+       #     echo "NEW_WWI_MIRROR_DB_CONNECTION_ID=$connectionID" >> $GITHUB_ENV
 
           # Create Medallion Layers if they do not exist
         - name: Create Medallion Layers if they do not exist
