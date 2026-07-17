@@ -480,52 +480,52 @@ jobs:
             grep --null -rl $OLD_L1_TRANSFORM_GENERIC_NOTEBOOK_ID ${GITHUB_WORKSPACE}/workspace | xargs -0 sed -i "s/$OLD_L1_TRANSFORM_GENERIC_NOTEBOOK_ID/$NEW_L1_TRANSFORM_GENERIC_NOTEBOOK_ID/g"
 
       # Deploy Pipeline wwi-elt-framework
-        - name: Deploy Pipeline wwi-elt-framework
-          run: |
-            PipelineExists=$(fab exists $WORKSPACE_NAME.Workspace/wwi-elt-framework.DataPipeline| tr -d '[:space:]')
-            pipeline_content=$(jq '.' "${GITHUB_WORKSPACE}/workspace/pipeline/elt-framework/wwi-elt-framework.DataPipeline/pipeline-content.json"| base64)
-            platform=$(jq '.' "${GITHUB_WORKSPACE}/workspace/pipeline/elt-framework/wwi-elt-framework.DataPipeline/.platform"| base64)
+      #  - name: Deploy Pipeline wwi-elt-framework
+      #    run: |
+      #      PipelineExists=$(fab exists $WORKSPACE_NAME.Workspace/wwi-elt-framework.DataPipeline| tr -d '[:space:]')
+      #      pipeline_content=$(jq '.' "${GITHUB_WORKSPACE}/workspace/pipeline/elt-framework/wwi-elt-framework.DataPipeline/pipeline-content.json"| base64)
+      #      platform=$(jq '.' "${GITHUB_WORKSPACE}/workspace/pipeline/elt-framework/wwi-elt-framework.DataPipeline/.platform"| base64)
 
-            if [ "$PipelineExists" != "*true" ]; then
-                folderId=$(fab get $WORKSPACE_NAME.Workspace/pipeline.Folder/elt-framework.Folder -q id | tr -d '\r')
-                jsonPayload=$(jq -n \
-                        --arg displayName "wwi-elt-framework" \
-                        --arg pipeline_content "$pipeline_content" \
-                        --arg platform "$platform" \
-                        --arg folderId "$folderId" \
-                        '{"displayName": $displayName,"definition": {"parts":[{"path": "pipeline-content.json","payload": $pipeline_content,"payloadType": "InlineBase64"},{"path": ".platform","payload": $platform,"payloadType": "InlineBase64"}]},"folderId": $folderId}')
-                response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/dataPipelines" -i "$jsonPayload" --show_headers)
-              else
-                pipelineId=$(fab get $WORKSPACE_NAME.Workspace/wwi-elt-framework.DataPipeline -q id | tr -d '\r')
-                jsonPayload=$(jq -n \
-                        --arg pipeline_content "$pipeline_content" \
-                        --arg platform "$platform" \
-                        '{"definition": {"parts":[{"path": "pipeline-content.json","payload": $pipeline_content,"payloadType": "InlineBase64"},{"path": ".platform","payload": $platform,"payloadType": "InlineBase64"}]}}')
-                response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/dataPipelines/$pipelineId/updateDefinition?updateMetadata=True" -i "$jsonPayload" --show_headers)
-              fi 
-              echo "$response"
-              status_code=$(echo "$response" | jq -r '.status_code')
-              if [ "$status_code" = "201" ] || [ "$status_code" = "200" ] || [ "$status_code" = "202" ]; then
-                if [ "$status_code" = "202" ]; then
-                  operation_id=$(echo "$response" | jq -r '.headers["x-ms-operation-id"]')
-                  retry_after=$(echo "$response" | jq -r '.headers["Retry-After"]')
-                  sleep "$retry_after"
-                  while :; do
-                      response=$(fab api -X get "/operations/$operation_id" --show_headers)
-                      echo "$response"
-                      status=$(echo "$response" | jq -r '.text.status')
-                      [[ "$status" == "Succeeded" || "$status" == "Failed" ]] && break
-                      sleep "$retry_after"
-                  done
-                  if [ "$status" = "Failed" ]; then
-                    echo "Async operation failed during deployment." >&2
-                    exit 1
-                  fi
-                fi
-              else
-                  echo "Deployment step failed with status code: $status_code">&2
-                  exit 1
-              fi
+      #      if [ "$PipelineExists" != "*true" ]; then
+      #          folderId=$(fab get $WORKSPACE_NAME.Workspace/pipeline.Folder/elt-framework.Folder -q id | tr -d '\r')
+      #          jsonPayload=$(jq -n \
+      #                  --arg displayName "wwi-elt-framework" \
+      #                  --arg pipeline_content "$pipeline_content" \
+      #                  --arg platform "$platform" \
+      #                  --arg folderId "$folderId" \
+      #                  '{"displayName": $displayName,"definition": {"parts":[{"path": "pipeline-content.json","payload": $pipeline_content,"payloadType": "InlineBase64"},{"path": ".platform","payload": $platform,"payloadType": "InlineBase64"}]},"folderId": $folderId}')
+      #          response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/dataPipelines" -i "$jsonPayload" --show_headers)
+      #        else
+      #          pipelineId=$(fab get $WORKSPACE_NAME.Workspace/wwi-elt-framework.DataPipeline -q id | tr -d '\r')
+      #          jsonPayload=$(jq -n \
+      #                  --arg pipeline_content "$pipeline_content" \
+      #                  --arg platform "$platform" \
+      #                  '{"definition": {"parts":[{"path": "pipeline-content.json","payload": $pipeline_content,"payloadType": "InlineBase64"},{"path": ".platform","payload": $platform,"payloadType": "InlineBase64"}]}}')
+      #          response=$(fab api -X post "workspaces/$NEW_FABRIC_WORKSPACE_ID/dataPipelines/$pipelineId/updateDefinition?updateMetadata=True" -i "$jsonPayload" --show_headers)
+      #        fi 
+      #        echo "$response"
+      #        status_code=$(echo "$response" | jq -r '.status_code')
+      #        if [ "$status_code" = "201" ] || [ "$status_code" = "200" ] || [ "$status_code" = "202" ]; then
+      #          if [ "$status_code" = "202" ]; then
+      #            operation_id=$(echo "$response" | jq -r '.headers["x-ms-operation-id"]')
+      #            retry_after=$(echo "$response" | jq -r '.headers["Retry-After"]')
+      #            sleep "$retry_after"
+      #            while :; do
+      #                response=$(fab api -X get "/operations/$operation_id" --show_headers)
+      #                echo "$response"
+      #                status=$(echo "$response" | jq -r '.text.status')
+      #                [[ "$status" == "Succeeded" || "$status" == "Failed" ]] && break
+      #                sleep "$retry_after"
+      #            done
+      #            if [ "$status" = "Failed" ]; then
+      #              echo "Async operation failed during deployment." >&2
+      #              exit 1
+      #            fi
+      #          fi
+      #        else
+      #            echo "Deployment step failed with status code: $status_code">&2
+      #            exit 1
+      #        fi
 
       # Deploy Pipeline Level2 Transform
         - name: Deploy Pipeline Level2 Transform
